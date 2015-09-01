@@ -28,20 +28,20 @@ draw st@(St{_screen = PassEditor}) = box st drawEdit _passEditor "ping" "pong"
 draw st@(St{_screen = UserMenu}) = box st drawList _userMenu "User menu" ""
 -}
 draw :: St -> [Widget]
-draw st@(St{_screen = s}) = 
+draw st@(St{_screen = s, _userName = u, _passWord = p}) = 
   case s of
-    MainList   -> boxList _mainList "Welcome, you" "Enter to choose. Esc to cancel"
-    WatchList  -> boxList _watchList "Which game would you like to watch?" ""
+    MainMenu   -> boxList _mainMenu "Welcome, you" "Enter to choose. Esc to cancel"
+    WatchMenu  -> boxList _watchMenu "Which game would you like to watch?" ""
     WatchUserList -> boxList _watchUserList "Select a user." "Press \"Ctrl-b d\" to exit view mode."
-    NameEditorL -> boxEdit _nameEditorL "Enter your username." ""
-    PassEditorL -> boxEdit _passEditorL "Enter your password." ""
-    NameEditorR -> boxEdit _nameEditorR "Enter a username." ""
-    PassEditorR -> boxEdit _passEditorR "Enter a password." ""
+    NameEditorL -> boxEdit _nameEditor "Enter your username." ""
+    PassEditorL -> boxEdit _passEditor "Enter your password." ""
+    NameEditorR -> boxEdit _nameEditor "Enter a username." ""
+    PassEditorR -> boxEdit _passEditor "Enter a password." ""
     EmailEditor -> boxEdit _emailEditor "Enter your email." "If you want, that is."
-    ConfDialogR -> [drawDialog st _confDialogR ("username: " ++ _userName st
-                                               ++ "password: " ++ _passWord st)]
+    ConfDialog -> [drawDialog st _confDialog ("username: " ++ u ++ "\n"
+                                             ++ "password: " ++ p)]
     PassEditorC -> boxEdit _passEditorC "Enter your new password." ""
-    UserMenu   -> boxList _userMenu (str ("hello "++ _userName st)) ""
+    UserMenu   -> boxList _userMenu (str ("hello "++ u)) ""
     GameMenu   -> boxList _gameMenu "What do you want to play?" ""
     _ -> []
     where boxList = box st drawList

@@ -2,16 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Events
   (appEvent
-  , handleMainListEvent
-  , handleWatchListEvent
-  , handleNameEditLEvent
+  , handleMainMenuEvent
   , startEvent
   ) where
 
 import Control.Lens
 import Control.Monad.Trans
 
-import Data.Text (pack, unpack)
+import Data.Text (Text, pack, unpack)
 
 import Brick.Main
 import Brick.Types
@@ -25,62 +23,63 @@ import Database.SQLite.Simple (withConnection)
 import Types
 import DBTools
 import GameTools
+import Util
 
 appEvent :: St -> Event -> EventM (Next St)
 appEvent st e =
   case st^.screen of
-    MainList   -> handleMainListEvent st e
-    WatchList  -> handleWatchListEvent st e
+    MainMenu   -> handleMainMenuEvent st e
+    WatchMenu  -> handleWatchMenuEvent st e
     WatchUserList -> handleWatchUserListEvent st e
-    NameEditorL -> handleNameEditLEvent st e
-    PassEditorL -> handlePassEditLEvent st e
-    NameEditorR -> handleNameEditREvent st e
-    PassEditorR -> handlePassEditREvent st e
+    NameEditorL -> handleNameEditEvent st e
+    PassEditorL -> handlePassEditEvent st e
+    NameEditorR -> handleNameEditEvent st e
+    PassEditorR -> handlePassEditEvent st e
     EmailEditor -> handleEmailEditEvent st e
-    PassEditorC -> handlePassEditCEvent st e
-    ConfDialogR -> handleConfDialogREvent st e
+    PassEditorC -> handlePassEditEvent st e
+    ConfDialog -> handleConfDialogEvent st e
     UserMenu   -> handleUserMenuEvent st e
     GameMenu   -> handleGameMenuEvent st e
 
-handleMainListEvent :: St -> Event -> EventM (Next St)
-handleMainListEvent st e =
+handleMainMenuEvent :: St -> Event -> EventM (Next St)
+handleMainMenuEvent st e =
   case e of
-    --EvKey KEnter [] -> continue $ st { _screen = WatchList }
-    EvKey KEnter [] -> case listSelection st _mainList of
+    --EvKey KEnter [] -> continue $ st { _screen = WatchMenu }
+    EvKey KEnter [] -> case listSelection st _mainMenu of
                          "login"  ->  toScreen st NameEditorL
                          "register"-> toScreen st NameEditorR
                          "watch"  -> do
-                                     newSt <- populateWatchList st
-                                     toScreen newSt WatchList
+                                     newSt <- populateWatchMenu st
+                                     toScreen newSt WatchMenu
                          "logout" ->  halt st
                          _ -> halt st
-    EvKey KUp []   -> passToWidget st e mainList
-    EvKey KDown [] -> passToWidget st e mainList
+    EvKey KUp []   -> passToWidget st e mainMenu
+    EvKey KDown [] -> passToWidget st e mainMenu
     EvKey KEsc []  -> halt st
     _ -> continue st
    -- implement error logging
 
-populateWatchList st = do
+populateWatchMenu st = do
                   gameNames <- liftIO $ getGameNames
-                  let newList = listReplace gameNames (_watchList st)
-                  let newSt = st {_watchList=newList}
+                  let newList = listReplace gameNames (_watchMenu st)
+                  let newSt = st {_watchMenu=newList}
                   return newSt
 
-handleWatchListEvent :: St -> Event -> EventM (Next St)
-handleWatchListEvent st e =
+handleWatchMenuEvent :: St -> Event -> EventM (Next St)
+handleWatchMenuEvent st e =
   case e of
     EvKey KEnter [] -> do
-                       sessions <- liftIO $ getSessions (listSelection st _watchList)
+                       sessions <- liftIO $ getSessions (listSelection st _watchMenu)
                        let newList = listReplace sessions (_watchUserList st)
                        let newSt = st {_watchUserList=newList}
                        toScreen newSt WatchUserList
-    EvKey KUp []    -> passToWidget st e watchList
-    EvKey KDown []  -> passToWidget st e watchList
+    EvKey KUp []    -> passToWidget st e watchMenu
+    EvKey KDown []  -> passToWidget st e watchMenu
     EvKey KEsc []   -> toScreen st destination
     _ -> toScreen st destination
   where destination = if _authenticated st
                          then UserMenu
-                         else MainList
+                         else MainMenu
 
 handleWatchUserListEvent :: St -> Event -> EventM (Next St)
 handleWatchUserListEvent st e =
@@ -88,93 +87,56 @@ handleWatchUserListEvent st e =
     EvKey KEnter [] -> suspendAndResume $ viewGame (listSelection st _watchUserList) st
     EvKey KUp []    -> passToWidget st e watchUserList
     EvKey KDown []  -> passToWidget st e watchUserList
-    EvKey KEsc []   -> toScreen st WatchList
-    _ -> toScreen st WatchList
+    EvKey KEsc []   -> toScreen st WatchMenu
+    _ -> toScreen st WatchMenu
 
-handleNameEditLEvent :: St -> Event -> EventM (Next St)
-handleNameEditLEvent st e =
+handleNameEditEvent :: St -> Event -> EventM (Next St)
+handleNameEditEvent st e =
   case e of
-    EvKey KEnter [] -> continue $ st { _screen = PassEditorL}
-    EvKey KEsc []   -> continue $ st { _screen = MainList}
-    _ -> passToWidget st e nameEditorL
+    EvKey KEnter [] -> case getEditInput _nameEditor st of
+                         "" -> toScreen st MainMenu   -- if user doesn't supply username, go back to MainMenu
+                         n  -> case st^.screen of
+                                 NameEditorL -> toScreen newSt PassEditorL
+                                 NameEditorR -> toScreen newSt PassEditorR
+                                 where newSt = st { _userName = n }
+    EvKey KEsc []   -> toScreen st MainMenu
+    _ -> passToWidget st e nameEditor
 
-handlePassEditLEvent :: St -> Event -> EventM (Next St)
-handlePassEditLEvent st e =
+handlePassEditEvent :: St -> Event -> EventM (Next St)
+handlePassEditEvent st e =
   case e of
-    EvKey KEnter [] -> do
-                       result <- liftIO $ withConnection dbPath (attemptLogin name pass)
-                       if result >= 0
-                          then continue $ st { _screen = UserMenu, _userID = result
-                                             , _authenticated = True, _userName = unpack name
-                                             , _passWord = unpack pass}
-                          else continue $ st { _screen = MainList}
-    EvKey KEsc []   -> continue $ st { _screen = MainList}
-    _ -> passToWidget st e passEditorL
-  where name = pack $ head $ getEditContents $ _nameEditorL st -- don't use head. doh
-        pass = pack $ head $ getEditContents $ _passEditorL st
-
-handleNameEditREvent :: St -> Event -> EventM (Next St)
-handleNameEditREvent st e =
-  case e of
-    EvKey KEnter [] -> continue $ st { _screen = PassEditorR}
-    EvKey KEsc []   -> continue $ st { _screen = MainList}
-    _ -> passToWidget st e nameEditorR
-{-
-handlePassEditREvent :: St -> Event -> EventM (Next St)
-handlePassEditREvent st e =
-  case e of
-    EvKey KEnter [] -> do
-                       let conn = st^.connection
-                       result <- liftIO $ attemptRegister conn name pass email
-                       if result > 0
-                          then continue $ st { _screen = UserMenu, _userID=result, _authenticated=True}
-                          else continue $ st { _screen = MainList}
-    EvKey KEsc []   -> continue $ st { _screen = MainList}
-    _ -> passToWidget st e passEditorR
-  where name = pack $ head $ getEditContents $ _nameEditorR st -- don't use head. doh
-        pass = pack $ head $ getEditContents $ _passEditorR st
--}
-
-handlePassEditREvent :: St -> Event -> EventM (Next St)
-handlePassEditREvent st e =
-  case e of
-    EvKey KEnter [] -> toScreen st EmailEditor
-    EvKey KEsc [] -> toScreen st MainList
-    _ -> passToWidget st e passEditorR
+    EvKey KEnter [] -> case getEditInput _passEditor st of
+                         "" -> toScreen st MainMenu
+                         p  -> case st^.screen of
+                                 PassEditorL -> logmein newSt
+                                 PassEditorR -> toScreen newSt EmailEditor
+                                 PassEditorC -> changepw newSt
+                                 where newSt = st { _passWord = p }
+    EvKey KEsc []   -> case st^.screen of
+                         PassEditorC -> toScreen st UserMenu
+                         _           -> toScreen st MainMenu
+    _ -> passToWidget st e passEditor
 
 handleEmailEditEvent :: St -> Event -> EventM (Next St)
 handleEmailEditEvent st e =
   case e of
-    EvKey KEnter [] -> continue $ st { _screen = ConfDialogR }
-    EvKey KEsc []   -> continue $ st { _screen = MainList }
+    EvKey KEnter [] -> toScreen newSt ConfDialog
+                       where newSt = st { _emailAddr = getEditInput _emailEditor st}
+    EvKey KEsc []   -> toScreen st MainMenu
     _ -> passToWidget st e emailEditor
 
-handlePassEditCEvent :: St -> Event -> EventM (Next St)
-handlePassEditCEvent st e =
+handleConfDialogEvent st@(St{_userName = name, _passWord = pass, _emailAddr = mail}) e =
   case e of
-    EvKey KEnter [] -> do
-                       liftIO $ withConnection dbPath $ updateUserPass (_userID st) (head $getEditContents $ _passEditorC st)
-                       toScreen st UserMenu
-    EvKey KEsc [] -> toScreen st UserMenu
-    _ -> passToWidget st e passEditorC
-
-handleConfDialogREvent :: St -> Event -> EventM (Next St)
-handleConfDialogREvent st e =
-  case e of
-    EvKey KEnter [] -> case dialogSelection (_confDialogR st ) of
+    EvKey KEnter [] -> case dialogSelection (_confDialog st ) of
                          Just True -> do
-                           result <- liftIO $ withConnection dbPath (attemptRegister name pass mail)
+                           result <- liftIO $ withConnection dbPath $ attemptRegister (pack name) (pack pass) (pack mail) -- TODO: extra function in Util.hs
                            if result >= 0 -- TODO: don't do this... pls
-                              then continue $ st { _screen = UserMenu, _userID=result, _authenticated=True
-                                                 , _userName = unpack name, _passWord = unpack pass}
-                              else toScreen st MainList
-                         Just False -> toScreen st MainList
-                         _ -> toScreen st MainList
-    EvKey KEsc [] -> toScreen st MainList
-    _ -> passToWidget st e confDialogR
-  where name = pack $ head $ getEditContents $ _nameEditorR st -- don't use head. doh
-        pass = pack $ head $ getEditContents $ _passEditorR st
-        mail = pack $ head $ getEditContents $ _emailEditor st
+                              then continue $ st { _screen = UserMenu, _userID=result, _authenticated=True }
+                              else toScreen st MainMenu
+                         Just False -> toScreen st MainMenu
+                         _ -> toScreen st MainMenu
+    EvKey KEsc [] -> toScreen st MainMenu
+    _ -> passToWidget st e confDialog
 
 handleUserMenuEvent :: St -> Event -> EventM (Next St)
 handleUserMenuEvent st e =
@@ -186,8 +148,8 @@ handleUserMenuEvent st e =
                            let newSt = st {_gameMenu=newList}
                            toScreen newSt GameMenu
                          "watch" -> do
-                                    newSt <- populateWatchList st
-                                    toScreen newSt WatchList
+                                    newSt <- populateWatchMenu st
+                                    toScreen newSt WatchMenu
                          "change pw" -> toScreen st PassEditorC
                          "logout" -> halt st
                          _ -> halt st
@@ -206,29 +168,6 @@ handleGameMenuEvent st e =
 --handlePassEditEvent :: St -> Event -> EventM (Next St)
 -- those are going to be very similar. combine them into one function handleEditEvent
 
-startGame :: String -> St -> IO St
-startGame sel st = do
-   games <- getGames
-   launchGame sel (pack(st^.userName)) games
-   return st
-          
-viewGame :: String -> St -> IO St
-viewGame sel st = do
-   watchGame sel
-   return st
-
 startEvent :: St -> EventM St
 startEvent = return
-
-listSelection :: St -> (St -> List String) -> String
-listSelection st l = case (listSelectedElement $ l st) of
-                     Just (_, x) -> x
-                     Nothing -> "error"
-
-passToWidget :: HandleEvent b =>
-     a -> Event -> Setting (->) a r b b -> EventM (Next r)
-passToWidget st e w = continue $ st & w %~ handleEvent e
-
-toScreen :: St -> Screen -> EventM (Next St)
-toScreen st s = continue $ st { _screen = s}
 
