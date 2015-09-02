@@ -32,7 +32,7 @@ writeGames = B.writeFile "games.txt" (encodePretty myGames)
 
 getGames :: IO [Game]
 getGames = do
-  contents <- B.readFile "./games.json" -- TODO: don't hardcode
+  contents <- B.readFile "./config/games.json" -- TODO: don't hardcode
   return (checkGames (decode contents :: Maybe [Game]))
     where checkGames (Just games) = games
           checkGames Nothing = []
