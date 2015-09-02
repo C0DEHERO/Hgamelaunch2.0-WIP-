@@ -32,7 +32,7 @@ writeGames = B.writeFile "games.txt" (encodePretty myGames)
 
 getGames :: IO [Game]
 getGames = do
-  contents <- B.readFile "./games.json"
+  contents <- B.readFile "./games.json" -- TODO: don't hardcode
   return (checkGames (decode contents :: Maybe [Game]))
     where checkGames (Just games) = games
           checkGames Nothing = []
@@ -69,7 +69,7 @@ launchGame n name (game@(Game choice _ rootpath gamepath userdir _ _ _ _ _):xs)
 --                                                       ++ addPrivs u
 launchGame _ _ _ = return ()
 -}
-launchGame :: String -> Text -> [Game] -> IO ()
+launchGame :: String -> Text -> [Game] -> IO () -- TODO: clean up. need better variable replacement
 launchGame s name (game@(Game shortname _ rootpath gamepath userdir sessiondir _ _ _ ):xs)
   | s == (unpack shortname) = do
       exists <- doesFileExist sessionFile
@@ -78,15 +78,15 @@ launchGame s name (game@(Game shortname _ rootpath gamepath userdir sessiondir _
          else attachGame
       removeFile sessionFile
   | otherwise = launchGame s name xs
-        where newGame = do
-                      writeFile sessionFile ""
-                      callProcess "tmux" $ ["new", "-s", (unpack name)] ++ [unpack . replaceName $ replaceRoot gamepath]++(makeArgs name game)
-              attachGame = do
-                         callProcess "tmux" ["a", "-t", (unpack name)]
-              makeArgs n (Game {gameargs = args}) = replaceInArgs args rootpath userdir n
-              replaceRoot = replace "%r" rootpath
-              replaceName = replace "%u" name
-              sessionFile = (unpack $ replaceRoot sessiondir)++(unpack name)
+    where newGame = do
+                  writeFile sessionFile ""
+                  callProcess "tmux" $ ["new", "-s", (unpack name)] ++ [unpack . replaceName $ replaceRoot gamepath]++(makeArgs name game)
+          attachGame = do
+                  callProcess "tmux" ["a", "-t", (unpack name)]
+          makeArgs n (Game {gameargs = args}) = replaceInArgs args rootpath userdir n
+          replaceRoot = replace "%r" rootpath
+          replaceName = replace "%u" name
+          sessionFile = (unpack $ replaceRoot sessiondir)++(unpack name)
 launchGame _ _ _ = return ()
 
 replaceInArgs :: [Text] -> Text -> Text -> Text -> [String]

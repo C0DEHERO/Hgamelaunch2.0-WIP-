@@ -9,7 +9,7 @@ module Types
   , Game(..)
 --  , Event(..)
   , initialState
-  , screen, mainMenu, watchMenu, watchUserList, nameEditor, passEditor, emailEditor, confDialog
+  , screen, mainMenu, watchUsers, nameEditor, passEditor, emailEditor, confDialog
   , passEditorC
   , userMenu, gameMenu
   , username, password, userID, userName, passWord, userPrivs
@@ -45,8 +45,8 @@ instance FromRow User where
   fromRow = User <$> field <*> field <*> field <*> field <*> field <*> field
 
 data Screen = MainMenu
-            | WatchMenu
-            | WatchUserList
+            | WatchGames
+            | WatchUsers
             | NameEditorL
             | PassEditorL
             | NameEditorR
@@ -83,8 +83,7 @@ data St = St { _screen :: Screen
              , _userPrivs :: (Bool,Bool)
              , _authenticated :: Bool
              , _mainMenu :: List String
-             , _watchMenu :: List String
-             , _watchUserList :: List String
+             , _watchUsers :: List String
              , _nameEditor :: Editor
              , _passEditor :: Editor
              , _passEditorC :: Editor
@@ -109,14 +108,13 @@ initialState =
      , _userPrivs = (False,False)
      , _authenticated = False
      , _mainMenu = list (Name "mainMenu") (const str) ["login", "register", "watch", "logout"]
-     , _watchMenu = list (Name "watchMenu") (const str) ["a","b","c"]
-     , _watchUserList = list (Name "watchUserList") (const str) ["a","b","c"]
+     , _watchUsers = list (Name "watchUsers") (const str) []
      , _nameEditor = editor (Name "nameEditor") (str.unlines) (Just 1) ""
-     , _passEditor = editor (Name "passEditor") (str.unlines) (Just 1) ""
+     , _passEditor = editor (Name "passEditor") (str.hidePw) (Just 1) ""
      , _emailEditor = editor (Name "emailEditor") (str.unlines) (Just 1) ""
      , _passEditorC = editor (Name "passEditorC") (str.unlines) (Just 1) ""
-     , _confDialog = dialog (Name "confDialog") (Just "hello") (Just (0, [("Yes", True),("No", False)])) 40
+     , _confDialog = dialog (Name "confDialog") (Just "Is this right?") (Just (0, [("Yes", True),("No", False)])) 40
      , _userMenu = list (Name "userMenu") (const str) ["play game", "watch", "change pw", "logout"]
      , _gameMenu = list (Name "gameMenu") (const str) []
      }
-
+  where hidePw = init . map (const '*') . unlines

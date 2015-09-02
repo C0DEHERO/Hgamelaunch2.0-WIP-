@@ -2,16 +2,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module DBTools 
   ( makeDb
-  , attemptLogin
-  , attemptRegister
   , dbPath
+  , insertUser
   , fetchUserWithID
   , updateUserPass
+  , fetchUserFromDb
   ) where
 
 import Database.SQLite.Simple
 import Data.Text
-import Control.Lens
+import System.Directory (copyFile, createDirectoryIfMissing)
+import Filesystem.Path.CurrentOS (encodeString, decodeString, parent)
 
 import Types
 
@@ -47,26 +48,3 @@ fetchUserFromDb conn name = do
   case xs of [] -> return Nothing
              [x] -> return (Just x)
              _ -> return Nothing
-
-attemptLogin :: Text -> Text -> Connection -> IO Int -- perhaps change to Either Int for error messages
-attemptLogin name pass conn = do
-  result <- fetchUserFromDb conn name
-  return $ case result of
-             Just uFromDb -> if name == (uFromDb^.username) &&
-                                pass == (uFromDb^.password)
-                                then uFromDb^.idNum
-                                else (-1)
-             Nothing -> (-1)
-
-attemptRegister :: Text -> Text -> Text -> Connection -> IO Int
-attemptRegister name pass mail conn = do
-  result <- fetchUserFromDb conn name :: IO (Maybe User)
-  case result of
-    Nothing -> do
-      let user = (User 0 name pass mail False False)
-      -- games <- getGames
-      -- createUserDirs username games
-      insertUser conn user
-      -- fetchUserFromDb conn username
-      return $ _idNum user
-    (Just _) -> return (-1)

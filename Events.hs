@@ -29,8 +29,8 @@ appEvent :: St -> Event -> EventM (Next St)
 appEvent st e =
   case st^.screen of
     MainMenu   -> handleMainMenuEvent st e
-    WatchMenu  -> handleWatchMenuEvent st e
-    WatchUserList -> handleWatchUserListEvent st e
+    WatchGames  -> handleGameMenuEvent st e
+    WatchUsers -> handleWatchUsersEvent st e
     NameEditorL -> handleNameEditEvent st e
     PassEditorL -> handlePassEditEvent st e
     NameEditorR -> handleNameEditEvent st e
@@ -49,8 +49,8 @@ handleMainMenuEvent st e =
                          "login"  ->  toScreen st NameEditorL
                          "register"-> toScreen st NameEditorR
                          "watch"  -> do
-                                     newSt <- populateWatchMenu st
-                                     toScreen newSt WatchMenu
+                                     newSt <- populateGameMenu st
+                                     toScreen newSt WatchGames
                          "logout" ->  halt st
                          _ -> halt st
     EvKey KUp []   -> passToWidget st e mainMenu
@@ -59,36 +59,14 @@ handleMainMenuEvent st e =
     _ -> continue st
    -- implement error logging
 
-populateWatchMenu st = do
-                  gameNames <- liftIO $ getGameNames
-                  let newList = listReplace gameNames (_watchMenu st)
-                  let newSt = st {_watchMenu=newList}
-                  return newSt
-
-handleWatchMenuEvent :: St -> Event -> EventM (Next St)
-handleWatchMenuEvent st e =
+handleWatchUsersEvent :: St -> Event -> EventM (Next St)
+handleWatchUsersEvent st e =
   case e of
-    EvKey KEnter [] -> do
-                       sessions <- liftIO $ getSessions (listSelection st _watchMenu)
-                       let newList = listReplace sessions (_watchUserList st)
-                       let newSt = st {_watchUserList=newList}
-                       toScreen newSt WatchUserList
-    EvKey KUp []    -> passToWidget st e watchMenu
-    EvKey KDown []  -> passToWidget st e watchMenu
-    EvKey KEsc []   -> toScreen st destination
-    _ -> toScreen st destination
-  where destination = if _authenticated st
-                         then UserMenu
-                         else MainMenu
-
-handleWatchUserListEvent :: St -> Event -> EventM (Next St)
-handleWatchUserListEvent st e =
-  case e of
-    EvKey KEnter [] -> suspendAndResume $ viewGame (listSelection st _watchUserList) st
-    EvKey KUp []    -> passToWidget st e watchUserList
-    EvKey KDown []  -> passToWidget st e watchUserList
-    EvKey KEsc []   -> toScreen st WatchMenu
-    _ -> toScreen st WatchMenu
+    EvKey KEnter [] -> suspendAndResume $ viewGame (listSelection st _watchUsers) st
+    EvKey KUp []    -> passToWidget st e watchUsers
+    EvKey KDown []  -> passToWidget st e watchUsers
+    EvKey KEsc []   -> toScreen st WatchGames
+    _ -> toScreen st WatchUsers
 
 handleNameEditEvent :: St -> Event -> EventM (Next St)
 handleNameEditEvent st e =
@@ -129,10 +107,7 @@ handleConfDialogEvent st@(St{_userName = name, _passWord = pass, _emailAddr = ma
   case e of
     EvKey KEnter [] -> case dialogSelection (_confDialog st ) of
                          Just True -> do
-                           result <- liftIO $ withConnection dbPath $ attemptRegister (pack name) (pack pass) (pack mail) -- TODO: extra function in Util.hs
-                           if result >= 0 -- TODO: don't do this... pls
-                              then continue $ st { _screen = UserMenu, _userID=result, _authenticated=True }
-                              else toScreen st MainMenu
+                           registerme st
                          Just False -> toScreen st MainMenu
                          _ -> toScreen st MainMenu
     EvKey KEsc [] -> toScreen st MainMenu
@@ -143,13 +118,11 @@ handleUserMenuEvent st e =
   case e of
     EvKey KEnter [] -> case listSelection st _userMenu of
                          "play game" -> do
-                           gameNames <- liftIO $ getGameNames
-                           let newList = listReplace gameNames (_gameMenu st)
-                           let newSt = st {_gameMenu=newList}
+                           newSt <- populateGameMenu st
                            toScreen newSt GameMenu
                          "watch" -> do
-                                    newSt <- populateWatchMenu st
-                                    toScreen newSt WatchMenu
+                           newSt <- populateGameMenu st
+                           toScreen newSt WatchGames
                          "change pw" -> toScreen st PassEditorC
                          "logout" -> halt st
                          _ -> halt st
@@ -160,14 +133,22 @@ handleUserMenuEvent st e =
 handleGameMenuEvent :: St -> Event -> EventM (Next St)
 handleGameMenuEvent st e =
   case e of
-    EvKey KEnter [] -> suspendAndResume $ startGame (listSelection st _gameMenu) st
+    EvKey KEnter [] -> case st^.screen of
+                         GameMenu -> suspendAndResume $ startGame (listSelection st _gameMenu) st
+                         WatchGames -> do
+                          sessions <- liftIO $ getSessions (listSelection st _gameMenu)
+                          _ <- liftIO $ writeFile "./leSession.txt" (show sessions)
+                          let newSt = st {_watchUsers = listReplace sessions (_watchUsers st)}
+                          toScreen newSt WatchUsers
     EvKey KUp []  -> passToWidget st e gameMenu
     EvKey KDown [] -> passToWidget st e gameMenu
-    EvKey KEsc [] -> toScreen st UserMenu
+    EvKey KEsc [] -> toScreen st destination
     _ -> continue st
+    where destination = if _authenticated st
+                           then UserMenu
+                           else MainMenu
 --handlePassEditEvent :: St -> Event -> EventM (Next St)
 -- those are going to be very similar. combine them into one function handleEditEvent
 
 startEvent :: St -> EventM St
 startEvent = return
-

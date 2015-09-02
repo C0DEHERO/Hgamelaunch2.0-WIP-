@@ -31,8 +31,8 @@ draw :: St -> [Widget]
 draw st@(St{_screen = s, _userName = u, _passWord = p}) = 
   case s of
     MainMenu   -> boxList _mainMenu "Welcome, you" "Enter to choose. Esc to cancel"
-    WatchMenu  -> boxList _watchMenu "Which game would you like to watch?" ""
-    WatchUserList -> boxList _watchUserList "Select a user." "Press \"Ctrl-b d\" to exit view mode."
+    WatchGames  -> boxList _gameMenu "Which game would you like to watch?" ""
+    WatchUsers -> boxList _watchUsers "Which user would you like to watch?" ""
     NameEditorL -> boxEdit _nameEditor "Enter your username." ""
     PassEditorL -> boxEdit _passEditor "Enter your password." ""
     NameEditorR -> boxEdit _nameEditor "Enter a username." ""
