@@ -22,7 +22,7 @@
     {
         "templatecfg": "%rcdda/template.cfg",
         "shortname": "CDDA SHARED",
-        "userdir": "!rootpath",
+        "userdir": "%ruserdata/cdda-shared/%n/",
         "sessiondir": "%rsessions/cdda-shared/",
         "gamename": "Cataclysm: Dark Days Ahead (Shared)",
         "cfgfile": "%uconfig/options.txt",
