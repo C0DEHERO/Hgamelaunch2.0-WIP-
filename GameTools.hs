@@ -72,15 +72,13 @@ launchGame _ _ _ = return ()
 launchGame :: String -> Text -> [Game] -> IO () -- TODO: clean up. need better variable replacement
 launchGame s name (game@(Game shortname _ rootpath gamepath userdir sessiondir _ _ _ ):xs)
   | s == (unpack shortname) = do
-      exists <- doesFileExist sessionFile
-      if not exists
-         then newGame
-         else attachGame
+      writeFile sessionFile ""
+      newGame
       removeFile sessionFile
   | otherwise = launchGame s name xs
     where newGame = do
                   writeFile sessionFile ""
-                  callProcess "tmux" $ ["new", "-s", (unpack name)] ++ [(unpack . replaceName $ replaceRoot gamepath)++ " "++(unwords $ makeArgs name game)]
+                  callProcess "tmux" $ ["new", "-As", (unpack name)] ++ [(unpack . replaceName $ replaceRoot gamepath)] ++(makeArgs name game)
           attachGame = do
                   removeFile sessionFile
                   callProcess "tmux" ["a", "-t", (unpack name)]
