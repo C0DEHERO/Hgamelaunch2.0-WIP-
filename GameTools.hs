@@ -79,10 +79,6 @@ launchGame s name (game@(Game shortname _ rootpath gamepath userdir sessiondir _
     where newGame = do
                   writeFile sessionFile ""
                   callProcess "tmux" $ ["new", "-As", (unpack name)] ++ [(unpack . replaceName $ replaceRoot gamepath)] ++(makeArgs name game)
-          attachGame = do
-                  removeFile sessionFile
-                  callProcess "tmux" ["a", "-t", (unpack name)]
-                  writeFile sessionFile ""
           makeArgs n (Game {gameargs = args}) = replaceInArgs args rootpath userdir n
           replaceRoot = replace "%r" rootpath
           replaceName = replace "%u" name
